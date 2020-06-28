@@ -1,5 +1,6 @@
 const express = require('express');
 const bodyParser = require('body-parser');
+const mongoose = require('mongoose');
 
 const tradesRoutes = require('../backend/routes/trades-routes');
 const userRoutes = require('../backend/routes/users-routes');
@@ -26,4 +27,24 @@ app.use((error, req, res, next) => {
 
 });
 
-app.listen(5000);
+const username = 'trackApp';
+const passwd = 'DU22S5ViBTcHCMN';
+const dbname = 'stockTrackApp';
+const url = `mongodb+srv://${username}:${passwd}@cluster0-itesb.mongodb.net/${dbname}?retryWrites=true&w=majority`
+
+mongoose.connect(url,  { useNewUrlParser: true,  useUnifiedTopology: true })
+    .then(
+        () => {
+            app.listen(5000);
+        }
+    )
+    .catch(
+        err => {
+            console.log(err);
+        }
+    )
+
+
+// mongodb+srv://<username>:<password>@cluster0-itesb.mongodb.net/<dbname>?retryWrites=true&w=majority
+// passwd: DU22S5ViBTcHCMN
+// user: trackApp

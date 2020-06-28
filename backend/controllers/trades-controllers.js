@@ -2,82 +2,93 @@ const {uuid} = require('uuidv4');
 const {validationResult } = require('express-validator');
 
 const HttpError = require('../models/http-error');
+const Trade = require('../models/trade');
 
 // DUMMY_TRADES
-const myDate = new Date();
-let DUMMY_TRADES = [
-    {
-        id: 't1',
-        security_id: 's1',
-        user_id: 'u1',
-        date: myDate,
-        operation: 'bought',
-        units: 1987,
-        unitPrice: 2.56,
-        commission: 6,
-        tax: 30.34
-    },
-    {
-        id: 't2',
-        security_id: 's2',
-        user_id: 'u2',
-        date: myDate,
-        operation: 'sold',
-        units: 17,
-        unitPrice: 52.60,
-        commission: 50,
-        tax: 0
-    },
-    {
-        id: 't1',
-        security_id: 's2',
-        user_id: 'u1',
-        date: myDate,
-        operation: 'bought',
-        units: 97,
-        unitPrice: 45.32,
-        commission: 6,
-        tax: 30.34
-    }
-]
+
+// let DUMMY_TRADES = [
+//     {
+//         id: 't1',
+//         security_id: 's1',
+//         user_id: 'u1',
+//         date: myDate,
+//         operation: 'bought',
+//         units: 1987,
+//         unitPrice: 2.56,
+//         commission: 6,
+//         tax: 30.34
+//     },
+//     {
+//         id: 't2',
+//         security_id: 's2',
+//         user_id: 'u2',
+//         date: myDate,
+//         operation: 'sold',
+//         units: 17,
+//         unitPrice: 52.60,
+//         commission: 50,
+//         tax: 0
+//     },
+//     {
+//         id: 't1',
+//         security_id: 's2',
+//         user_id: 'u1',
+//         date: myDate,
+//         operation: 'bought',
+//         units: 97,
+//         unitPrice: 45.32,
+//         commission: 6,
+//         tax: 30.34
+//     }
+// ]
 
 
-const getTradesById = (req, res, next) => {
+const getTradesById = async (req, res, next) => {
     const tradeId = req.params.tId;
-    const trade = DUMMY_TRADES.find(t => {
-        return t.id === tradeId;
-    });
 
+    let trade;
+    try {
+     trade =  await Trade.findById(tradeId);
+    } catch (e) {
+        const error = new HttpError("Something went wrong, could not find a trade", 500);
+        return next(error)
+    }
     if (!trade) {
         return next(new HttpError("Could not find a trade for the provided id", 404));
     }
 
-    res.json({trade});  // {trade: trade}
+    res.json({trade: trade.toObject( { getters: true }) });  // {trade: trade}
 }
 
-const getTradesByUserId = (req, res, next) => {
+const getTradesByUserId = async (req, res, next) => {
     const userId = req.params.uId;
-    const userTrades = DUMMY_TRADES.filter((trade, index, trades) => {
-        return trade.user_id === userId;
-    });
+    let trades;
+    try{
+        trades = await Trade.find({ user_id: userId })
+    } catch (e) {
+        return next(new HttpError("Something went wrong, could not find a trade. Please try again", 500));
+    }
 
-    if (!userTrades || userTrades.length === 0) {
+    if (!trades || trades.length === 0) {
         return next(new HttpError("Could not find a trade for the provided user id", 404));
     }
 
-    return res.json({userTrades})
+    return res.json({ trades: trades.map(p => p.toObject({ getters: true })) })
 }
 
-const createTrade = (req, res, next) => {
+const createTrade = async (req, res, next) => {
     const errors = validationResult(req);
     if(!errors.isEmpty()){
         console.log(errors)
         throw new HttpError("Invalid input passed, please check your data", 422);
     }
-    const {security_id, user_id, operation, units, unitPrice, commission, tax} = req.body;
-    // todo: calculate commision and tax
-    const newTrade = {
-        id: uuid(),
+    const {operation, units, unitPrice, commission, tax} = req.body;
+
+    const myDate = new Date();
+    const security_id = 's3';
+    const user_id = 'u2';
+
+    const newTrade = new Trade({
         security_id,
         user_id,
         date: myDate,
@@ -86,14 +97,19 @@ const createTrade = (req, res, next) => {
         unitPrice,
         commission,
         tax
+    });
+
+    try {
+        await newTrade.save();
+    } catch (err) {
+        const error = new HttpError("Creating trade failed, please try again", 500);
     }
 
-    DUMMY_TRADES.push(newTrade);
-    res.status(201).json({newTrade});
+    res.status(201).json({trade: newTrade.toObject({ getters: true })});
 }
 
-const updateTrade = (req, res, next) => {
-
+const updateTrade = async (req, res, next) => {
+    console.log('Got here')
     const errors = validationResult(req);
     if(!errors.isEmpty()){
         console.log(errors);
@@ -104,29 +120,53 @@ const updateTrade = (req, res, next) => {
     // todo: calculate commision and tax
     const tradeId = req.params.tId;
 
-    const updatedTrade = {...DUMMY_TRADES.find(t => t.id === tradeId)};
-    const tradeIndex = DUMMY_TRADES.findIndex(t => t.id === tradeId);
+    let trade;
+    try{
+        trade = await Trade.findById(tradeId);
+    } catch (e) {
+        console.log(e);
+        const error = new HttpError("Something went wrong, could not update trade for the provided trade id", 500);
+        return next(error);
+    }
 
-    updatedTrade.commission = commission;
-    updatedTrade.units = units;
-    updatedTrade.tax = tax;
-    updatedTrade.unitPrice = unitPrice;
-    updatedTrade.operation = operation;
+    trade.operation = operation;
+    trade.units = units;
+    trade.unitPrice = unitPrice;
+    trade.commission = commission;
+    trade.tax = tax;
 
-    DUMMY_TRADES[tradeIndex] = updatedTrade;
+    try {
+        await trade.save();
+    } catch (e) {
+        console.log(e)
+        const error = new HttpError("Something went wrong, could not update trade", 500);
+        return next(error);
+    }
 
-    res.status(201).json({updatedTrade});
+    res.status(201).json({trade: trade.toObject({ getters: true })});
 
 }
 
-const deleteTrade = (req, res, next) => {
+const deleteTrade = async (req, res, next) => {
     const tradeId = req.params.tId;
 
-    if(!DUMMY_TRADES.find(t => t.id === tradeId)) {
-        throw new HttpError("Could not find a trade for the provided trade id", 404)
+    let trade;
+    try{
+        trade = await Trade.findById(tradeId);
+    } catch (e) {
+        console.log(e);
+        const error = new HttpError("Something went wrong, could not delete trade for the provided trade id", 500);
+        return next(error);
     }
 
-    DUMMY_TRADES = DUMMY_TRADES.filter(t => t.id !== tradeId);
+    try{
+        await trade.remove();
+    } catch (e) {
+        console.log(e);
+        const error = new HttpError("Something went wrong, could not delete trade for the provided trade id", 500);
+        return next(error);
+    }
+
 
     res.status(200).json({});
 }
