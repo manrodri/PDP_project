@@ -1,4 +1,5 @@
 const {uuid} = require('uuidv4');
+const {validationResult} = require('express-validator');
 
 const HttpError = require('../models/http-error');
 
@@ -35,12 +36,19 @@ const getUserById = ((req, res, next) => {
 
 
 const signUp = ((req, res, next) => {
-    const {name, email, password } = req.body;
+
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+        console.log(errors);
+        throw new HttpError("Invalid input passed, please check your data", 422);
+    }
+
+    const {name, email, password} = req.body;
     const hasUser = DUMMY_USERS.find(u => u.email === email);
-    if(hasUser){
+    if (hasUser) {
         throw new HttpError("User already exists, please login", 422);
     }
-    const newUser =  {
+    const newUser = {
         id: uuid(),
         name,
         email,
@@ -55,7 +63,7 @@ const signUp = ((req, res, next) => {
 const login = ((req, res, next) => {
     const {email, password} = req.body;
     const identifiedUser = DUMMY_USERS.find(u => u.email === email);
-    if(!identifiedUser || identifiedUser.password !== password){
+    if (!identifiedUser || identifiedUser.password !== password) {
         throw new HttpError("Could not identified user, username or password are incorrect")
     }
     res.status(200).json({message: "user logged in!"})
@@ -64,8 +72,17 @@ const login = ((req, res, next) => {
 });
 
 const updateUser = ((req, res, next) => {
-    const {name, password}  = req.body;
+
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+        console.log(errors);
+        throw new HttpError("Invalid input passed, please check your data", 422);
+    }
+
+    const {name, password} = req.body;
     const userId = req.params.uId;
+
+
 
     const updatedUser = {...DUMMY_USERS.find(u => u.id === userId)};
     const userIndex = DUMMY_USERS.findIndex(u => u.id === userId);
@@ -80,6 +97,11 @@ const updateUser = ((req, res, next) => {
 
 const deleteUser = ((req, res, next) => {
     const userId = req.params.uId;
+
+    if(!DUMMY_USERS.find(u => u.id === userId)) {
+        throw new HttpError("Could not find an user for the provided user id", 404)
+    }
+
     DUMMY_USERS = DUMMY_USERS.filter(user => user.id !== userId)
     res.status(200).json({});
 });

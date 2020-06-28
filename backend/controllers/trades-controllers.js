@@ -1,4 +1,5 @@
 const {uuid} = require('uuidv4');
+const {validationResult } = require('express-validator');
 
 const HttpError = require('../models/http-error');
 
@@ -68,8 +69,13 @@ const getTradesByUserId = (req, res, next) => {
 }
 
 const createTrade = (req, res, next) => {
+    const errors = validationResult(req);
+    if(!errors.isEmpty()){
+        console.log(errors)
+        throw new HttpError("Invalid input passed, please check your data", 422);
+    }
     const {security_id, user_id, operation, units, unitPrice, commission, tax} = req.body;
-
+    // todo: calculate commision and tax
     const newTrade = {
         id: uuid(),
         security_id,
@@ -87,7 +93,15 @@ const createTrade = (req, res, next) => {
 }
 
 const updateTrade = (req, res, next) => {
+
+    const errors = validationResult(req);
+    if(!errors.isEmpty()){
+        console.log(errors);
+        throw new HttpError("Invalid input passed, please check your data", 422);
+    }
+
     const {operation, units, unitPrice, commission, tax} = req.body;
+    // todo: calculate commision and tax
     const tradeId = req.params.tId;
 
     const updatedTrade = {...DUMMY_TRADES.find(t => t.id === tradeId)};
@@ -107,6 +121,11 @@ const updateTrade = (req, res, next) => {
 
 const deleteTrade = (req, res, next) => {
     const tradeId = req.params.tId;
+
+    if(!DUMMY_TRADES.find(t => t.id === tradeId)) {
+        throw new HttpError("Could not find a trade for the provided trade id", 404)
+    }
+
     DUMMY_TRADES = DUMMY_TRADES.filter(t => t.id !== tradeId);
 
     res.status(200).json({});
