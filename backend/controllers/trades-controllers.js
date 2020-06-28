@@ -80,7 +80,7 @@ const createTrade = async (req, res, next) => {
     const errors = validationResult(req);
     if(!errors.isEmpty()){
         console.log(errors)
-        throw new HttpError("Invalid input passed, please check your data", 422);
+        return next(new HttpError("Invalid input passed, please check your data", 422));
     }
     const {operation, units, unitPrice, commission, tax} = req.body;
 
@@ -113,7 +113,7 @@ const updateTrade = async (req, res, next) => {
     const errors = validationResult(req);
     if(!errors.isEmpty()){
         console.log(errors);
-        throw new HttpError("Invalid input passed, please check your data", 422);
+        return next(new HttpError("Invalid input passed, please check your data", 422));
     }
 
     const {operation, units, unitPrice, commission, tax} = req.body;

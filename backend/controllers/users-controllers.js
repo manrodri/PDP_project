@@ -1,115 +1,80 @@
-const {uuid} = require('uuidv4');
-const {validationResult} = require('express-validator');
+const {validationResult } = require('express-validator');
 
 const HttpError = require('../models/http-error');
+const User = require('../models/user');
 
-
-// DUMMY_USERS
-
-let DUMMY_USERS = [
-    {
-        id: 'u1',
-        name: "Manuel Rodriguez",
-        email: "manuel@example.com",
-        password: "password123"
+const getUsers = async (req, res, next) => {
+    let users;
+    try {
+        users = await User.find({}, '-password');
+    } catch (err) {
+        const error = new HttpError(
+            'Fetching users failed, please try again later.',
+            500
+        );
+        return next(error);
     }
-];
+    res.json({users: users.map(user => user.toObject({ getters: true }))});
+};
 
-// controllers
-
-const getUsers = ((req, res, next) => {
-    res.status(200).json({users: DUMMY_USERS});
-});
-
-const getUserById = ((req, res, next) => {
-    const userId = req.params.uId;
-    const user = DUMMY_USERS.find(u => {
-        return u.id === userId;
-    });
-
-    if (!user) {
-        return next(new HttpError("Could not find an user for the provided id", 404));
-    }
-
-    res.status(200).json({user: user});  // {trade: trade}
-});
-
-
-const signUp = ((req, res, next) => {
-
+const signUp = async (req, res, next) => {
     const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-        console.log(errors);
-        throw new HttpError("Invalid input passed, please check your data", 422);
+    if(!errors.isEmpty()){
+        console.log(errors)
+        return next(new HttpError("Invalid input passed, please check your data", 422))
+    }
+    const {name, email, password, trades } = req.body;
+
+    let existingUser;
+    try {
+        await User.findOne({ email: email })
+    } catch (err) {
+        console.log(err)
+        const error = new HttpError("Creating trade failed, please try again", 500);
+        return next(error)
+    }
+    if(existingUser){
+        return next(new HttpError("User exists already, please login", 422));
     }
 
-    const {name, email, password} = req.body;
-    const hasUser = DUMMY_USERS.find(u => u.email === email);
-    if (hasUser) {
-        throw new HttpError("User already exists, please login", 422);
-    }
-    const newUser = {
-        id: uuid(),
+    const newUser = new User({
         name,
         email,
-        password
+        password,  // todo: encrypt password
+        trades // todo: link user and trades
+    });
+    
+    try {
+        await newUser.save();
+    } catch (e) {
+        console.log(e)
+        const error = new HttpError("Creating trade failed, please try again", 501);
+        return next(error)
     }
 
-    DUMMY_USERS.push(newUser);
-    res.status(201).json({user: newUser})
+    res.status(201).json({trade: newUser.toObject({ getters: true })});
+}
 
-});
+const login = async (req, res, next) => {
+    const { email, password } = req.body;
 
-const login = ((req, res, next) => {
-    const {email, password} = req.body;
-    const identifiedUser = DUMMY_USERS.find(u => u.email === email);
-    if (!identifiedUser || identifiedUser.password !== password) {
-        throw new HttpError("Could not identified user, username or password are incorrect")
-    }
-    res.status(200).json({message: "user logged in!"})
-
-
-});
-
-const updateUser = ((req, res, next) => {
-
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-        console.log(errors);
-        throw new HttpError("Invalid input passed, please check your data", 422);
+    let existingUser;
+    try {
+        existingUser = await User.findOne({ email: email })
+    } catch (err) {
+        console.log(err)
+        const error = new HttpError("Login failed, please try again", 500);
+        return next(error)
     }
 
-    const {name, password} = req.body;
-    const userId = req.params.uId;
-
-
-
-    const updatedUser = {...DUMMY_USERS.find(u => u.id === userId)};
-    const userIndex = DUMMY_USERS.findIndex(u => u.id === userId);
-
-    updatedUser.name = name;
-    updatedUser.password = password;
-
-    DUMMY_USERS[userIndex] = updatedUser;
-    res.status(201).json({user: updatedUser});
-});
-
-
-const deleteUser = ((req, res, next) => {
-    const userId = req.params.uId;
-
-    if(!DUMMY_USERS.find(u => u.id === userId)) {
-        throw new HttpError("Could not find an user for the provided user id", 404)
+    if(!existingUser || existingUser.password !== password){
+        const error = new HttpError("Invalid username or credential, please try again", 401);
+        return next(error);
     }
 
-    DUMMY_USERS = DUMMY_USERS.filter(user => user.id !== userId)
-    res.status(200).json({});
-});
+    res.json({message: "User logged in!"})
+}
 
-exports.getUsers = getUsers;
-exports.getUserById = getUserById;
 exports.signUp = signUp;
 exports.login = login;
-exports.updateUser = updateUser;
-exports.deleteUser = deleteUser;
-
+exports.getUsers = getUsers;
